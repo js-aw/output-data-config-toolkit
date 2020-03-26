@@ -24,7 +24,7 @@ use Pimcore\Logger;
 use Pimcore\Model\DataObject\AbstractObject;
 use Pimcore\Model\DataObject\ClassDefinition;
 use Pimcore\Model\DataObject\Classificationstore\KeyConfig;
-use Symfony\Component\EventDispatcher\EventDispatcher;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
 
@@ -42,6 +42,20 @@ class AdminController extends \Pimcore\Bundle\AdminBundle\Controller\AdminContro
     private $orderByName = false;
 
     /**
+     * 
+     * @var EventDispatcherInterface
+     */
+    protected $eventDispatcher;
+
+    /**
+     * @param EventDispatcherInterface $eventDispatcher
+     */
+    public function __construct(EventDispatcherInterface $eventDispatcher)
+    {
+        $this->eventDispatcher = $eventDispatcher;
+    }
+
+    /**
      * @param Request $request
      * @return \Pimcore\Bundle\AdminBundle\HttpFoundation\JsonResponse
      *
@@ -51,14 +65,13 @@ class AdminController extends \Pimcore\Bundle\AdminBundle\Controller\AdminContro
     {
         $objectId = $request->get("id");
         $object = AbstractObject::getById($objectId);
-        $eventDispatcher = \Pimcore::getEventDispatcher();
 
         if (!$object) {
             $this->adminJson(array("error" => true, "object" => (object)[]));
         }
 
         $event = new InitializeEvent($object);
-        $eventDispatcher->dispatch(OutputDataConfigToolkitEvents::INITIALIZE, $event);
+        $this->eventDispatcher->dispatch(OutputDataConfigToolkitEvents::INITIALIZE, $event);
 
         if ($event->getHideConfigTab() || !$event->getObject()) {
             // do not show output config tab
@@ -370,7 +383,7 @@ class AdminController extends \Pimcore\Bundle\AdminBundle\Controller\AdminContro
      * @Route("/save-output-config")
      * @return \Pimcore\Bundle\AdminBundle\HttpFoundation\JsonResponse
      */
-    public function saveOutputConfigAction(Request $request, EventDispatcher $eventDispatcher)
+    public function saveOutputConfigAction(Request $request)
     {
         try {
             $config = OutputDefinition::getByID($request->get("config_id"));
@@ -394,7 +407,7 @@ class AdminController extends \Pimcore\Bundle\AdminBundle\Controller\AdminContro
 
 
             $event = new SaveConfigEvent($config);
-            $eventDispatcher->dispatch(OutputDataConfigToolkitEvents::SAVE_CONFIG_EVENT, $event);
+            $this->eventDispatcher->dispatch(OutputDataConfigToolkitEvents::SAVE_CONFIG_EVENT, $event);
 
             if ($event->doSortAttributes()) {
                 $objectClass = ClassDefinition::getById($config->getO_ClassId());
